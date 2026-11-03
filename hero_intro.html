@@ -1,0 +1,115 @@
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Gochi+Hand&display=swap');
+html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; font-family: Fredoka, system-ui, sans-serif; color: #fff; }
+.view { position: fixed; inset: 0; overflow: hidden; }
+
+/* the wall the camera flies over (size and positions are set by the script for wide or tall screens) */
+.wall { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform, filter; }
+.frame { position: absolute; }
+.fr { box-sizing: border-box; overflow: hidden; background: #17506b; outline: 4px solid rgba(0,0,0,.35);
+      box-shadow: inset 0 0 0 4px rgba(255,255,255,.22), 0 22px 40px rgba(0,0,0,.5); }
+.fr svg, .fr img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.small .fr { width: 300px; height: 375px; border: 18px solid var(--fc); }
+.label { margin-top: 22px; text-align: center; font: 400 64px/1 'Gochi Hand', cursive; text-shadow: 0 4px 0 rgba(0,0,0,.3), 0 0 18px rgba(0,0,0,.4); }
+
+/* the big family frame, hung from two nails at its top corners */
+.fam { position: absolute; width: 760px; transform-origin: 714px 0; }
+.fam .fr { width: 760px; height: 440px; border: 24px solid #ffc83d; background: #20c3a6; position: relative; }
+.fam .chip { position: absolute; left: 50%; top: 36px; transform: translateX(-50%) rotate(-3deg); white-space: nowrap; z-index: 2;
+             font: 400 86px/1 'Gochi Hand', cursive; text-shadow: 0 4px 0 rgba(0,0,0,.28); }
+.fam .chip em { font-style: normal; color: #ffc83d; }
+.fam .people { position: absolute; left: 0; right: 0; bottom: 0; height: 250px; }
+.fam .photo { position: absolute; inset: 0; }
+.nail { position: absolute; top: -12px; width: 20px; height: 20px; border-radius: 50%; z-index: 3;
+        background: radial-gradient(circle at 35% 35%, #fff, #9aa3a8 45%, #4b5257); box-shadow: 0 2px 4px rgba(0,0,0,.5); }
+.nail.l { left: 36px; } .nail.r { right: 36px; }
+
+/* credits on the wall, behind the family frame */
+.credits { position: absolute; width: 640px; height: 470px; display: flex; flex-direction: column; align-items: center;
+           justify-content: center; text-align: center; opacity: 0; }
+.credits small { font: 400 56px 'Gochi Hand', cursive; }
+.credits b { display: block; font: 600 70px/1.3 Fredoka, sans-serif; text-shadow: 0 4px 10px rgba(0,0,0,.55); }
+
+.skip { position: fixed; right: 14px; bottom: 12px; z-index: 5; font: 600 14px Fredoka, sans-serif; color: #fff; cursor: pointer;
+        background: rgba(0,0,0,.35); border: 2px solid rgba(255,255,255,.6); border-radius: 99px; padding: 7px 15px; }
+.skip:hover { border-color: #ffc83d; } .skip:focus-visible { outline: 3px solid #ffc83d; outline-offset: 2px; }
+</style>
+
+<div class="view" role="img" aria-label="Intro: picture frames of a dad, a mom and the kids, then a Mom or Dad? family frame tilts to show who made the app">
+  <div class="wall" id="wall">
+    <div class="credits" id="credits"><small>made by</small>__MAKERS__</div>
+    <div id="smalls"></div>
+    <div class="fam" id="fam">
+      <span class="nail l" id="nailL"></span><span class="nail r"></span>
+      <div class="fr" id="famfr"><div class="chip">Mom or Dad<em>?</em></div></div>
+    </div>
+  </div>
+  <button class="skip" id="skip">Skip intro</button>
+</div>
+
+<script>
+(() => {
+  const FRAMES = __FRAMES__, FAMILY_PHOTO = __FAMILY_PHOTO__;
+  const sil = 'rgba(255,255,255,.24)';
+  const SVG = {
+    adult: `<svg viewBox="0 0 100 125" preserveAspectRatio="xMidYMid slice"><rect width="100" height="125" fill="#17506b"/><circle cx="50" cy="50" r="19" fill="${sil}"/><path d="M14 125c0-30 16-42 36-42s36 12 36 42z" fill="${sil}"/></svg>`,
+    kids: `<svg viewBox="0 0 100 125" preserveAspectRatio="xMidYMid slice"><rect width="100" height="125" fill="#17506b"/><circle cx="32" cy="66" r="13" fill="${sil}"/><path d="M8 125c0-22 11-32 24-32s24 10 24 32z" fill="${sil}"/><circle cx="69" cy="72" r="11" fill="${sil}"/><path d="M48 125c0-19 9-27 21-27s21 8 21 27z" fill="${sil}"/></svg>`,
+    family: `<svg viewBox="0 0 712 250" preserveAspectRatio="xMidYMax meet"><g fill="#0a3a52" opacity=".9">
+      <circle cx="200" cy="80" r="42"/><path d="M120 250c0-70 36-102 80-102s80 32 80 102z"/><circle cx="512" cy="84" r="40"/><path d="M434 250c0-68 34-98 78-98s78 30 78 98z"/>
+      <circle cx="318" cy="140" r="30"/><path d="M262 250c0-50 25-72 56-72s56 22 56 72z"/><circle cx="400" cy="148" r="26"/><path d="M352 250c0-44 22-64 48-64s48 20 48 64z"/></g></svg>`,
+  };
+
+  // two wall layouts: wide screens put the frames in a row, tall phone screens stack them under the family frame
+  const WIDE = { w: 2400, h: 1350, view: [2150, 1210], all: [1288, 690], fam: [820, 150], credits: [700, 150], small: [[250, 690], [760, 720], [1990, 690]] };
+  const TALL = { w: 1300, h: 1560, view: [1360, 1500], all: [690, 830], fam: [270, 120], credits: [150, 120], small: [[40, 1050], [500, 1080], [960, 1050]] };
+  const L = innerWidth / innerHeight < 1.1 ? TALL : WIDE;
+
+  const wall = document.getElementById('wall');
+  wall.style.width = L.w + 'px'; wall.style.height = L.h + 'px';
+  const place = (el, [x, y]) => { el.style.left = x + 'px'; el.style.top = y + 'px'; };
+  place(document.getElementById('fam'), L.fam); place(document.getElementById('credits'), L.credits);
+  document.getElementById('famfr').insertAdjacentHTML('beforeend',
+    FAMILY_PHOTO ? `<img class="photo" src="${FAMILY_PHOTO}" alt="">` : `<div class="people">${SVG.family}</div>`);
+  const tilt = [-5, 4, -3];
+  document.getElementById('smalls').innerHTML = FRAMES.map((f, i) => `
+    <div class="frame small" id="f${i}" style="left:${L.small[i][0]}px;top:${L.small[i][1]}px;--fc:${f.colour};transform:rotate(${tilt[i]}deg)">
+      <div class="fr">${f.img ? `<img src="${f.img}" alt="${f.label}">` : (i === 2 ? SVG.kids : SVG.adult)}</div>
+      <div class="label">${f.label}</div></div>`).join('');
+
+  // camera: look at wall point (x, y) with zoom s, tilt r and motion blur b
+  const cam = (x, y, s, r, b) => ({ transform: `translate(${innerWidth / 2}px, ${innerHeight / 2}px) rotate(${r}deg) scale(${s}) translate(${-x}px, ${-y}px)`,
+                                    filter: `blur(${b}px)` });
+  const fit = Math.min(innerWidth / L.view[0], innerHeight / L.view[1]);   // final view framed on the content
+  const zoom = Math.min(innerWidth / 460, innerHeight / 620);
+  const at = (i) => [L.small[i][0] + 168, L.small[i][1] + 250];             // centre of a small frame + its label
+  const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  const [D, M, K] = [at(0), at(1), at(2)], ALL = L.all;
+  const T = 8200;
+  const keys = [[0, D, zoom, -4, 0], [1300, D, zoom, -4, 0], [1750, mid(D, M), zoom * .85, 0, 2.5], [2150, M, zoom, 3, 0], [3250, M, zoom, 3, 0],
+                [3700, mid(M, K), zoom * .75, 0, 3], [4100, K, zoom, -3, 0], [5200, K, zoom, -3, 0], [6150, ALL, fit, 0, 0], [T, ALL, fit, 0, 0]];
+  const anims = [];
+  anims.push(wall.animate(keys.map(([t, p, s, r, b]) => ({ ...cam(p[0], p[1], s, r, b), offset: t / T })),
+                          { duration: T, easing: 'ease-in-out', fill: 'forwards' }));
+
+  // each small frame rocks as the camera arrives on it
+  [150, 2150, 4100].forEach((delay, i) => anims.push(document.getElementById('f' + i).animate(
+    [0, 7, -4, 2, 0].map(d => ({ transform: `rotate(${tilt[i] + d}deg)` })), { duration: 1100, delay, easing: 'ease-out', fill: 'both' })));
+
+  // the family frame: one nail pops and the frame swings down on the other, showing the names behind it
+  const TILT = 6500;
+  anims.push(document.getElementById('nailL').animate([{ transform: 'none', opacity: 1 }, { transform: 'translate(-30px, 70px) rotate(-200deg)', opacity: 0 }],
+    { duration: 500, delay: TILT, easing: 'ease-in', fill: 'forwards' }));
+  anims.push(document.getElementById('fam').animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(-72deg)', offset: .35 },
+    { transform: 'rotate(-48deg)', offset: .55 }, { transform: 'rotate(-63deg)', offset: .72 }, { transform: 'rotate(-55deg)', offset: .86 },
+    { transform: 'rotate(-58deg)' }], { duration: 1900, delay: TILT + 80, easing: 'ease-out', fill: 'forwards' }));
+  anims.push(document.getElementById('credits').animate([{ opacity: 0, transform: 'scale(.92)' }, { opacity: 1, transform: 'none' }],
+    { duration: 700, delay: TILT + 500, easing: 'ease-out', fill: 'forwards' }));
+
+  // when the intro is over, tell the page so it fades the intro out and shows the title page
+  const done = () => { try { window.parent.document.documentElement.classList.add('intro-done'); } catch (e) {} };
+  const skip = document.getElementById('skip');
+  skip.onclick = () => { anims.forEach(a => a.finish()); done(); };
+  anims[anims.length - 1].finished.then(() => { skip.style.display = 'none'; setTimeout(done, 1300); });   // short pause on the names
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) anims.forEach(a => a.finish());   // no motion: final picture, then the page
+})();
+</script>
